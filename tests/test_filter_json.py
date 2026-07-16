@@ -11,7 +11,29 @@ import filter_json
 
 
 class FilterJsonTests(unittest.TestCase):
-    def test_filters_fields_paths_and_preserves_full_text(self):
+    def test_visible_text_cleanup_keeps_readable_stopwords(self):
+        text = "The café ☰ is open!!!\nVisit... a trusted site 🙂"
+
+        result = filter_json.process_visible_text(text)
+
+        self.assertEqual(result, "The café is open! Visit. a trusted site")
+
+    def test_long_visible_text_keeps_representative_chunks_under_900_words(self):
+        chunks = [
+            " ".join([f"chunk{number}"] + [f"word{number}"] * 98)
+            for number in range(41)
+        ]
+        chunks[27] = " ".join(["captcha"] + ["failure"] * 98)
+
+        result = filter_json.process_visible_text(" ".join(chunks))
+
+        self.assertLessEqual(len(result.split()), 900)
+        self.assertIn("chunk0", result)
+        self.assertIn("chunk1", result)
+        self.assertIn("captcha", result)
+        self.assertIn("chunk40", result)
+
+    def test_filters_fields_paths_and_preserves_short_text_content(self):
         text = "This full text must remain unchanged. " * 100
         artifact = {
             "status_code": 200,
@@ -49,7 +71,7 @@ class FilterJsonTests(unittest.TestCase):
                 "anchor_tagst": ["live", "news", "weather", "sports", "contest"],
                 "img_tag_count": 7,
                 "lang_detected": "en",
-                "url_visible_text": text,
+                "url_visible_text": text.strip(),
             },
         )
 

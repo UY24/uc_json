@@ -1,10 +1,27 @@
 import json
+import re
 import sys
+import unicodedata
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
 
 BASE_DIR = Path(__file__).parent
+CHUNK_WORDS = 99
+MAX_CHUNKS = 9
+FAILURE_SIGNALS = (
+    "404",
+    "403",
+    "not found",
+    "access denied",
+    "captcha",
+    "verify you are human",
+    "unavailable",
+    "under construction",
+    "parked",
+    "forbidden",
+    "server error",
+)
 FIELDS = (
     "status_code",
     "error-comment",
@@ -18,8 +35,57 @@ FIELDS = (
 )
 
 
+def _clean_text(text):
+    characters = []
+    for character in unicodedata.normalize("NFKC", text):
+        category = unicodedata.category(character)
+        if character.isspace() or (
+            not category.startswith("C")
+            and category not in {"So", "Sk"}
+            and character not in {"\ufe0e", "\ufe0f"}
+        ):
+            characters.append(character)
+    text = re.sub(r"([.,!?])\1+", r"\1", "".join(characters))
+    return " ".join(text.split())
+
+
+def _unique_chunks(words):
+    chunks = []
+    seen = set()
+    for start in range(0, len(words), CHUNK_WORDS):
+        chunk = words[start : start + CHUNK_WORDS]
+        key = " ".join(chunk).casefold()
+        if key not in seen:
+            seen.add(key)
+            chunks.append(chunk)
+    return chunks
+
+
 def process_visible_text(text):
-    return text
+    text = _clean_text(text)
+    words = text.split()
+    if len(words) <= 900:
+        return text
+
+    chunks = _unique_chunks(words)
+    if len(chunks) <= MAX_CHUNKS:
+        return " ... ".join(" ".join(chunk) for chunk in chunks)
+
+    selected = {0, 1, len(chunks) - 1}
+    for index, chunk in enumerate(chunks):
+        if len(selected) == MAX_CHUNKS:
+            break
+        lowered = " ".join(chunk).casefold()
+        if any(signal in lowered for signal in FAILURE_SIGNALS):
+            selected.add(index)
+
+    candidates = [index for index in range(len(chunks)) if index not in selected]
+    needed = MAX_CHUNKS - len(selected)
+    for slot in range(needed):
+        position = (slot + 1) * len(candidates) // (needed + 1)
+        selected.add(candidates[position])
+
+    return " ... ".join(" ".join(chunks[index]) for index in sorted(selected))
 
 
 def anchor_paths(urls):
