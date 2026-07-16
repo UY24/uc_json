@@ -32,7 +32,7 @@ def anchor_paths(urls):
     paths = []
     for url in urls:
         path = unquote(urlparse(str(url)).path) or "/"
-        if path not in paths:
+        if path != "/" and path not in paths:
             paths.append(path)
     return random.sample(paths, min(5, len(paths)))
 
@@ -84,7 +84,7 @@ def extract_html_summary(raw_html):
     return {
         "title": clean_text(titles[0].text_content()) if titles else "",
         "h1_tags": _unique_tag_texts(root, "h1"),
-        "h2_tags": _unique_tag_texts(root, "h2"),
+        "h2_tags": _unique_tag_texts(root, "h2", 5),
         "url_visible_text": _closest_content(root),
     }
 
@@ -97,7 +97,6 @@ def filter_artifact(artifact):
         "anchor_tag_count": artifact.get("anchor_tag_count"),
         "anchor_tags_list": anchor_paths(artifact.get("anchor_tagst") or []),
         "img_tag_count": artifact.get("img_tag_count"),
-        "lang_detected": artifact.get("lang_detected") or "",
         **summary,
     }
 

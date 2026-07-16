@@ -16,6 +16,7 @@ class FilterJsonTests(unittest.TestCase):
         with patch("random.sample", side_effect=lambda values, count: values):
             result = filter_json.anchor_paths(
                 [
+                    "https://www.goodreads.com/",
                     "https://www.goodreads.com/blog/show/3146?"
                     "ref=literalsummer_eb"
                 ]
@@ -46,7 +47,9 @@ class FilterJsonTests(unittest.TestCase):
                 <header><p>{'footer ' * 40}</p><h1>Main, Heading!</h1></header>
                 <h1>Second &amp; Heading</h1><h1>Second &amp; Heading</h1>
                 <h1>Third. Heading</h1>
-                <h1>Fourth Heading</h1><h2>Our, Services!</h2>
+                <h1>Fourth Heading</h1>
+                <h2>Our, Services!</h2><h2>About Us</h2><h2>News</h2>
+                <h2>Contact</h2><h2>Careers</h2><h2>Sixth Heading</h2>
                 <p>{short}</p><p>{closest}</p><p>{long}</p>
                 </body></html>
             """,
@@ -66,7 +69,6 @@ class FilterJsonTests(unittest.TestCase):
                 "anchor_tag_count",
                 "anchor_tags_list",
                 "img_tag_count",
-                "lang_detected",
                 "title",
                 "h1_tags",
                 "h2_tags",
@@ -80,7 +82,10 @@ class FilterJsonTests(unittest.TestCase):
             result["h1_tags"],
             ["Main Heading", "Second Heading", "Third Heading"],
         )
-        self.assertEqual(result["h2_tags"], ["Our Services"])
+        self.assertEqual(
+            result["h2_tags"],
+            ["Our Services", "About Us", "News", "Contact", "Careers"],
+        )
         self.assertEqual(result["url_visible_text"], closest.replace(",", ""))
         self.assertEqual(len(result["anchor_tags_list"]), 5)
         self.assertIn(

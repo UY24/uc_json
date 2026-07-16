@@ -18,7 +18,6 @@ word_count
 anchor_tag_count
 anchor_tags_list
 img_tag_count
-lang_detected
 title
 h1_tags
 h2_tags
@@ -32,10 +31,9 @@ url_visible_text
 - `anchor_tag_count`: Shows how many links and navigation elements exist.
 - `anchor_tags_list`: Provides up to five randomly sampled complete paths without domains, query strings, or fragments.
 - `img_tag_count`: Shows whether the page has visual content and normal website structure.
-- `lang_detected`: Identifies the page language for the later LLM check.
 - `title`: Provides the page's main browser title.
 - `h1_tags`: Keeps up to three primary page headings.
-- `h2_tags`: Keeps up to three secondary page headings.
+- `h2_tags`: Keeps up to five secondary page headings.
 - `url_visible_text`: Provides the valid paragraph, leaf div, or leaf span closest to 40 words.
 
 `status_code`, `error-comment`, `is_go_daddy`, `final_result`, raw HTML and all other source fields are excluded.
@@ -45,7 +43,7 @@ url_visible_text
 1. Keep the complete decoded path from every anchor URL.
 2. Remove the domain, query string, and fragment.
 3. Preserve nested segments, slashes, punctuation, and file extensions.
-4. Remove duplicate paths.
+4. Remove duplicate paths and the exact root path `/`.
 5. Randomly select up to five values.
 
 Example:
@@ -60,7 +58,7 @@ https://www.goodreads.com/blog/show/3146?ref=literalsummer_eb
 1. Parse `url_raw_body` with the free `lxml` library.
 2. Extract the page `<title>`.
 3. Keep the first three unique, non-empty `<h1>` values.
-4. Keep the first three unique, non-empty `<h2>` values.
+4. Keep the first five unique, non-empty `<h2>` values.
 5. Collect valid `<p>` elements and leaf `<div>` and `<span>` elements.
 6. Select the candidate whose word count is closest to 40.
 7. Prefer `<p>`, then `<div>`, then `<span>` when candidates are equally close.
