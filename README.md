@@ -33,7 +33,7 @@ uc_json/.venv/bin/python uc_json/filter_json.py
 
 Downloaded files are written to `uc_json/json`. Filtered files are written to `uc_json/output`.
 
-The filter keeps `input_url`, `word_count`, `anchor_tag_count`, up to five random normalized paths in `anchor_tags_list`, `img_tag_count`, `lang_detected`, the page `title`, up to three `h1_tags`, up to three `h2_tags`, and `url_visible_text` containing the complete paragraph closest to 40 words. If a page has no paragraph, a leaf div is used instead. Punctuation and decorative symbols are removed from extracted human-readable text.
+The filter keeps `input_url`, `word_count`, `anchor_tag_count`, up to five random complete paths without domains or query strings in `anchor_tags_list`, `img_tag_count`, `lang_detected`, the page `title`, up to three `h1_tags`, up to three `h2_tags`, and `url_visible_text` containing the valid paragraph, leaf div, or leaf span closest to 40 words. Punctuation and decorative symbols are removed from extracted human-readable text.
 
 ## Test
 

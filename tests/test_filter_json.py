@@ -12,6 +12,17 @@ import filter_json
 
 
 class FilterJsonTests(unittest.TestCase):
+    def test_anchor_paths_keep_full_path_and_remove_query(self):
+        with patch("random.sample", side_effect=lambda values, count: values):
+            result = filter_json.anchor_paths(
+                [
+                    "https://www.goodreads.com/blog/show/3146?"
+                    "ref=literalsummer_eb"
+                ]
+            )
+
+        self.assertEqual(result, ["/blog/show/3146"])
+
     def test_extracts_approved_schema_from_html(self):
         short = " ".join(f"short{i}" for i in range(10))
         closest = " ".join(f"context{i}," for i in range(41))
@@ -72,7 +83,24 @@ class FilterJsonTests(unittest.TestCase):
         self.assertEqual(result["h2_tags"], ["Our Services"])
         self.assertEqual(result["url_visible_text"], closest.replace(",", ""))
         self.assertEqual(len(result["anchor_tags_list"]), 5)
-        self.assertIn("really long product name", result["anchor_tags_list"])
+        self.assertIn(
+            "/products/really-long-product-name/",
+            result["anchor_tags_list"],
+        )
+
+    def test_selects_closest_paragraph_leaf_div_or_leaf_span(self):
+        paragraph = " ".join(f"paragraph{i}" for i in range(60))
+        division = " ".join(f"division{i}" for i in range(44))
+        span = " ".join(f"span{i}" for i in range(39))
+        artifact = {
+            "url_raw_body": (
+                f"<p>{paragraph}</p><div>{division}</div><span>{span}</span>"
+            )
+        }
+
+        result = filter_json.filter_artifact(artifact)
+
+        self.assertEqual(result["url_visible_text"], span)
 
     def test_uses_leaf_div_only_when_no_paragraph_exists(self):
         excerpt = " ".join(f"detail{i}." for i in range(42))

@@ -30,23 +30,30 @@ url_visible_text
 - `input_url`: Identifies the website that was checked.
 - `word_count`: Keeps the original page word count and indicates whether the page has substantial content.
 - `anchor_tag_count`: Shows how many links and navigation elements exist.
-- `anchor_tags_list`: Provides up to five example website sections from randomly sampled anchor paths.
+- `anchor_tags_list`: Provides up to five randomly sampled complete paths without domains, query strings, or fragments.
 - `img_tag_count`: Shows whether the page has visual content and normal website structure.
 - `lang_detected`: Identifies the page language for the later LLM check.
 - `title`: Provides the page's main browser title.
 - `h1_tags`: Keeps up to three primary page headings.
 - `h2_tags`: Keeps up to three secondary page headings.
-- `url_visible_text`: Provides one complete content paragraph closest to 40 words.
+- `url_visible_text`: Provides the valid paragraph, leaf div, or leaf span closest to 40 words.
 
 `status_code`, `error-comment`, `is_go_daddy`, `final_result`, raw HTML and all other source fields are excluded.
 
 ## Anchor Processing
 
-1. Take the last non-empty path segment from every anchor URL.
-2. Remove file extensions and URL encoding.
-3. Replace punctuation with spaces and convert text to lowercase.
-4. Remove blanks, `index`, and duplicates.
-5. Randomly select up to five values. Long names are allowed.
+1. Keep the complete decoded path from every anchor URL.
+2. Remove the domain, query string, and fragment.
+3. Preserve nested segments, slashes, punctuation, and file extensions.
+4. Remove duplicate paths.
+5. Randomly select up to five values.
+
+Example:
+
+```text
+https://www.goodreads.com/blog/show/3146?ref=literalsummer_eb
+-> /blog/show/3146
+```
 
 ## HTML Content Extraction
 
@@ -54,14 +61,15 @@ url_visible_text
 2. Extract the page `<title>`.
 3. Keep the first three unique, non-empty `<h1>` values.
 4. Keep the first three unique, non-empty `<h2>` values.
-5. Find the complete `<p>` whose word count is closest to 40.
-6. Use a leaf `<div>` only when no paragraph exists.
-7. Ignore paragraphs and divs inside navigation, header, footer, aside, script and style elements.
-8. Return empty HTML fields when the body is missing or cannot be parsed.
+5. Collect valid `<p>` elements and leaf `<div>` and `<span>` elements.
+6. Select the candidate whose word count is closest to 40.
+7. Prefer `<p>`, then `<div>`, then `<span>` when candidates are equally close.
+8. Ignore candidates inside navigation, header, footer, aside, script and style elements.
+9. Return empty HTML fields when the body is missing or cannot be parsed.
 
 ## Text Cleanup
 
-For `title`, headings, anchor paths and `url_visible_text`:
+For `title`, headings and `url_visible_text`:
 
 1. Normalize Unicode and whitespace.
 2. Remove control characters, emojis and special symbols.
@@ -69,6 +77,7 @@ For `title`, headings, anchor paths and `url_visible_text`:
 4. Collapse repeated spaces.
 
 `input_url` remains unchanged because removing its punctuation would break the URL.
+`anchor_tags_list` also preserves punctuation because it stores URL paths.
 
 ## Run the Complete Pipeline
 

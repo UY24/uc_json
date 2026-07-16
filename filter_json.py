@@ -10,6 +10,7 @@ from lxml import etree, html
 
 BASE_DIR = Path(__file__).parent
 EXCLUDED_TAGS = {"nav", "header", "footer", "aside", "script", "style"}
+TAG_PRIORITY = {"p": 0, "div": 1, "span": 2}
 
 
 def clean_text(value):
@@ -30,11 +31,9 @@ def clean_text(value):
 def anchor_paths(urls):
     paths = []
     for url in urls:
-        segment = unquote(urlparse(str(url)).path).rstrip("/").rsplit("/", 1)[-1]
-        segment = segment.rsplit(".", 1)[0]
-        name = clean_text(segment).lower()
-        if name and name != "index" and name not in paths:
-            paths.append(name)
+        path = unquote(urlparse(str(url)).path) or "/"
+        if path not in paths:
+            paths.append(path)
     return random.sample(paths, min(5, len(paths)))
 
 
@@ -56,6 +55,22 @@ def _unique_tag_texts(root, tag, limit=3):
     return values
 
 
+def _closest_content(root):
+    candidates = []
+    for order, element in enumerate(root.xpath("//p | //div | //span")):
+        tag = str(element.tag).lower()
+        if not _allowed(element):
+            continue
+        if tag != "p" and element.xpath(".//p | .//div | .//span"):
+            continue
+        value = clean_text(element.text_content())
+        if value:
+            candidates.append(
+                (abs(len(value.split()) - 40), TAG_PRIORITY[tag], order, value)
+            )
+    return min(candidates)[3] if candidates else ""
+
+
 def extract_html_summary(raw_html):
     empty = {"title": "", "h1_tags": [], "h2_tags": [], "url_visible_text": ""}
     if not raw_html:
@@ -66,29 +81,11 @@ def extract_html_summary(raw_html):
         return empty
 
     titles = root.xpath("//title")
-    paragraphs = [
-        clean_text(element.text_content())
-        for element in root.xpath("//p")
-        if _allowed(element)
-    ]
-    paragraphs = [value for value in paragraphs if value]
-    if not paragraphs:
-        paragraphs = [
-            clean_text(element.text_content())
-            for element in root.xpath("//div")
-            if _allowed(element) and not element.xpath(".//div | .//p")
-        ]
-        paragraphs = [value for value in paragraphs if value]
-
     return {
         "title": clean_text(titles[0].text_content()) if titles else "",
         "h1_tags": _unique_tag_texts(root, "h1"),
         "h2_tags": _unique_tag_texts(root, "h2"),
-        "url_visible_text": (
-            min(paragraphs, key=lambda value: abs(len(value.split()) - 40))
-            if paragraphs
-            else ""
-        ),
+        "url_visible_text": _closest_content(root),
     }
 
 
