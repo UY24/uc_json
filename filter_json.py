@@ -1,113 +1,108 @@
 import json
-import re
+import random
 import sys
 import unicodedata
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
+from lxml import etree, html
+
 
 BASE_DIR = Path(__file__).parent
-CHUNK_WORDS = 99
-MAX_CHUNKS = 9
-FAILURE_SIGNALS = (
-    "404",
-    "403",
-    "not found",
-    "access denied",
-    "captcha",
-    "verify you are human",
-    "unavailable",
-    "under construction",
-    "parked",
-    "forbidden",
-    "server error",
-)
-FIELDS = (
-    "status_code",
-    "error-comment",
-    "is_go_daddy",
-    "wc",
-    "anchor_tag_count",
-    "anchor_tagst",
-    "img_tag_count",
-    "lang_detected",
-    "url_visible_text",
-)
+EXCLUDED_TAGS = {"nav", "header", "footer", "aside", "script", "style"}
 
 
-def _clean_text(text):
+def clean_text(value):
     characters = []
-    for character in unicodedata.normalize("NFKC", text):
+    for character in unicodedata.normalize("NFKC", value or ""):
         category = unicodedata.category(character)
-        if character.isspace() or (
+        if character.isspace() or category.startswith("P"):
+            characters.append(" ")
+        elif (
             not category.startswith("C")
-            and category not in {"So", "Sk"}
+            and not category.startswith("S")
             and character not in {"\ufe0e", "\ufe0f"}
         ):
             characters.append(character)
-    text = re.sub(r"([.,!?])\1+", r"\1", "".join(characters))
-    return " ".join(text.split())
-
-
-def _unique_chunks(words):
-    chunks = []
-    seen = set()
-    for start in range(0, len(words), CHUNK_WORDS):
-        chunk = words[start : start + CHUNK_WORDS]
-        key = " ".join(chunk).casefold()
-        if key not in seen:
-            seen.add(key)
-            chunks.append(chunk)
-    return chunks
-
-
-def process_visible_text(text):
-    text = _clean_text(text)
-    words = text.split()
-    if len(words) <= 900:
-        return text
-
-    chunks = _unique_chunks(words)
-    if len(chunks) <= MAX_CHUNKS:
-        return " ... ".join(" ".join(chunk) for chunk in chunks)
-
-    selected = {0, 1, len(chunks) - 1}
-    for index, chunk in enumerate(chunks):
-        if len(selected) == MAX_CHUNKS:
-            break
-        lowered = " ".join(chunk).casefold()
-        if any(signal in lowered for signal in FAILURE_SIGNALS):
-            selected.add(index)
-
-    candidates = [index for index in range(len(chunks)) if index not in selected]
-    needed = MAX_CHUNKS - len(selected)
-    for slot in range(needed):
-        position = (slot + 1) * len(candidates) // (needed + 1)
-        selected.add(candidates[position])
-
-    return " ... ".join(" ".join(chunks[index]) for index in sorted(selected))
+    return " ".join("".join(characters).split())
 
 
 def anchor_paths(urls):
     paths = []
     for url in urls:
         segment = unquote(urlparse(str(url)).path).rstrip("/").rsplit("/", 1)[-1]
-        name = segment.rsplit(".", 1)[0].replace("-", " ").replace("_", " ")
-        name = " ".join(name.lower().split())
-        if name and name != "index" and len(name) <= 10 and name not in paths:
+        segment = segment.rsplit(".", 1)[0]
+        name = clean_text(segment).lower()
+        if name and name != "index" and name not in paths:
             paths.append(name)
-        if len(paths) == 5:
+    return random.sample(paths, min(5, len(paths)))
+
+
+def _allowed(element):
+    return not any(
+        str(node.tag).lower() in EXCLUDED_TAGS
+        for node in (element, *element.iterancestors())
+    )
+
+
+def _unique_tag_texts(root, tag, limit=3):
+    values = []
+    for element in root.xpath(f"//{tag}"):
+        value = clean_text(element.text_content())
+        if value and value not in values:
+            values.append(value)
+        if len(values) == limit:
             break
-    return paths
+    return values
+
+
+def extract_html_summary(raw_html):
+    empty = {"title": "", "h1_tags": [], "h2_tags": [], "url_visible_text": ""}
+    if not raw_html:
+        return empty
+    try:
+        root = html.document_fromstring(raw_html)
+    except (etree.ParserError, TypeError, ValueError):
+        return empty
+
+    titles = root.xpath("//title")
+    paragraphs = [
+        clean_text(element.text_content())
+        for element in root.xpath("//p")
+        if _allowed(element)
+    ]
+    paragraphs = [value for value in paragraphs if value]
+    if not paragraphs:
+        paragraphs = [
+            clean_text(element.text_content())
+            for element in root.xpath("//div")
+            if _allowed(element) and not element.xpath(".//div | .//p")
+        ]
+        paragraphs = [value for value in paragraphs if value]
+
+    return {
+        "title": clean_text(titles[0].text_content()) if titles else "",
+        "h1_tags": _unique_tag_texts(root, "h1"),
+        "h2_tags": _unique_tag_texts(root, "h2"),
+        "url_visible_text": (
+            min(paragraphs, key=lambda value: abs(len(value.split()) - 40))
+            if paragraphs
+            else ""
+        ),
+    }
 
 
 def filter_artifact(artifact):
-    result = {field: artifact.get(field) for field in FIELDS}
-    result["anchor_tagst"] = anchor_paths(artifact.get("anchor_tagst") or [])
-    result["url_visible_text"] = process_visible_text(
-        artifact.get("url_visible_text") or ""
-    )
-    return result
+    summary = extract_html_summary(artifact.get("url_raw_body") or "")
+    return {
+        "input_url": artifact.get("input_url") or "",
+        "word_count": artifact.get("wc"),
+        "anchor_tag_count": artifact.get("anchor_tag_count"),
+        "anchor_tags_list": anchor_paths(artifact.get("anchor_tagst") or []),
+        "img_tag_count": artifact.get("img_tag_count"),
+        "lang_detected": artifact.get("lang_detected") or "",
+        **summary,
+    }
 
 
 def filter_directory(input_dir, output_dir):
