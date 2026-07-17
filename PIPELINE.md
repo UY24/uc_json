@@ -4,11 +4,12 @@
 
 1. Read every row from the CSV.
 2. Get the compressed S3 URL from `s3status`.
-3. Download and Brotli-decompress the `.json.br` file.
-4. Validate the JSON and save it as `json/{hashval}.json`.
-5. Skip files already downloaded and continue past failed rows.
-6. Parse each downloaded file's `url_raw_body`.
-7. Write the compact result as `output/{hashval}.json`.
+3. Pass the URL to `process_line(s3link)`.
+4. Download and Brotli-decompress the `.json.br` file.
+5. Validate the JSON and parse its `url_raw_body`.
+6. Return the compact dictionary from `process_line`.
+7. Save that dictionary as `output/{hashval}.json`.
+8. Skip files already processed and continue past failed rows.
 
 ## Output Fields
 
@@ -83,13 +84,13 @@ For `title`, headings and `page_text_snippet`:
 From inside `uc_json` with the virtual environment active:
 
 ```bash
-python main.py csv/tmp_full.csv && python filter_json.py
+python main.py csv/tmp_full.csv
 ```
 
 To download one file at a time:
 
 ```bash
-python main.py csv/tmp_full.csv --concurrency 1 && python filter_json.py
+python main.py csv/tmp_full.csv --concurrency 1
 ```
 
 ## Run Tests

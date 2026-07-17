@@ -9,6 +9,8 @@ from urllib.request import urlopen
 
 import brotli
 
+from filter_json import filter_artifact
+
 
 BASE_DIR = Path(__file__).parent
 
@@ -22,6 +24,24 @@ def fetch_bytes(url):
         return response.read()
 
 
+def process_line(s3link: str) -> dict:
+    text = brotli.decompress(
+        fetch_bytes(extract_s3_link(s3link.strip()))
+    ).decode("utf-8")
+    artifact = json.loads(text)
+    if not isinstance(artifact, dict):
+        raise ValueError("JSON artifact is not an object")
+    return filter_artifact(artifact)
+
+
+def save_result(result, path):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(result, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+
 def download_one(row, output_dir):
     hashval = row.get("hashval", "").strip()
     s3status = row.get("s3status", "").strip()
@@ -32,9 +52,7 @@ def download_one(row, output_dir):
     if path.exists():
         return "skipped", hashval
 
-    text = brotli.decompress(fetch_bytes(extract_s3_link(s3status))).decode("utf-8")
-    json.loads(text)
-    path.write_text(text, encoding="utf-8")
+    save_result(process_line(s3status), path)
     return "downloaded", hashval
 
 
@@ -56,7 +74,7 @@ def process_rows(rows, output_dir, workers=10):
 def main():
     parser = argparse.ArgumentParser(description="Download s3status JSON artifacts from a CSV")
     parser.add_argument("csv_path", type=Path)
-    parser.add_argument("--output-dir", type=Path, default=BASE_DIR / "json")
+    parser.add_argument("--output-dir", type=Path, default=BASE_DIR / "output")
     parser.add_argument("--concurrency", type=int, default=10)
     args = parser.parse_args()
 
