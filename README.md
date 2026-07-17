@@ -47,11 +47,16 @@ uc_json/.venv/bin/python -m unittest discover -s uc_json/tests -v
 
 ## Gemini Batch Classification
 
-Set the API key only when submitting or collecting:
+Create the local environment file and add your real API key:
 
 ```bash
-export GEMINI_API_KEY="your-key"
+cp .env.example .env
 ```
+
+`.env` also controls the model, requests per batch, concurrent batch-job
+submissions, and the input/output token prices used for cost reporting. It is
+gitignored; `.env.example` contains the defaults. Explicit `--batch-size` and
+`--concurrency` command-line values override `.env`.
 
 Prepare keyed JSONL files from compact `output/*.json` files without making a
 network request:

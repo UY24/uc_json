@@ -1,4 +1,5 @@
 import json
+import os
 import sys
 import tempfile
 import unittest
@@ -8,6 +9,17 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).parents[1]))
 import llm_categoriser as categoriser
+
+
+class ConfigTests(unittest.TestCase):
+    def test_rejects_non_positive_numeric_environment_value(self):
+        with patch.dict(os.environ, {"GEMINI_BATCH_SIZE": "0"}):
+            with self.assertRaisesRegex(ValueError, "GEMINI_BATCH_SIZE"):
+                categoriser._positive_env("GEMINI_BATCH_SIZE", 5000, int)
+
+        with patch.dict(os.environ, {"GEMINI_BATCH_SIZE": "many"}):
+            with self.assertRaisesRegex(ValueError, "GEMINI_BATCH_SIZE"):
+                categoriser._positive_env("GEMINI_BATCH_SIZE", 5000, int)
 
 
 class PrepareTests(unittest.TestCase):
@@ -203,6 +215,20 @@ class SubmitTests(unittest.TestCase):
         self.assertIsNone(jobs[0]["job_name"])
         self.assertIn("creation failed", jobs[0]["error"])
         self.assertEqual(jobs[1]["job_name"], "batches/batch-00002")
+
+    def test_submit_uses_model_saved_in_manifest(self):
+        manifest_path = self.work_dir / "jobs.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["model"] = "gemini-test-model"
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+        client = FakeClient()
+
+        categoriser.submit_batches(self.work_dir, client=client)
+
+        self.assertEqual(
+            [call[0] for call in client.batches.create_calls],
+            ["gemini-test-model", "gemini-test-model"],
+        )
 
 
 class ResultTests(unittest.TestCase):
@@ -436,10 +462,22 @@ class CollectTests(unittest.TestCase):
         self.assertEqual(client.files.download_calls, ["files/results"])
 
     def test_cli_parser_supports_prepare_submit_and_collect(self):
-        parser = categoriser.build_parser()
+        with (
+            patch.object(categoriser, "BATCH_SIZE", 7),
+            patch.object(categoriser, "CONCURRENCY", 4),
+        ):
+            parser = categoriser.build_parser()
 
-        self.assertEqual(parser.parse_args(["prepare"]).command, "prepare")
-        self.assertEqual(parser.parse_args(["submit"]).concurrency, 3)
+        self.assertEqual(parser.parse_args(["prepare"]).batch_size, 7)
+        self.assertEqual(parser.parse_args(["submit"]).concurrency, 4)
+        self.assertEqual(
+            parser.parse_args(["prepare", "--batch-size", "9"]).batch_size,
+            9,
+        )
+        self.assertEqual(
+            parser.parse_args(["submit", "--concurrency", "2"]).concurrency,
+            2,
+        )
         collect = parser.parse_args(["collect", "--wait"])
         self.assertTrue(collect.wait)
         self.assertEqual(collect.poll_seconds, 30)

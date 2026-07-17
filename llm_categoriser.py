@@ -7,11 +7,31 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
+from dotenv import load_dotenv
 
-MODEL = "gemini-3.1-flash-lite"
-INPUT_USD_PER_MILLION = 0.125
-OUTPUT_USD_PER_MILLION = 0.75
 BASE_DIR = Path(__file__).parent
+load_dotenv(BASE_DIR / ".env")
+
+
+def _positive_env(name, default, convert):
+    try:
+        value = convert(os.environ.get(name, default))
+    except ValueError as error:
+        raise ValueError(f"{name} must be a positive number") from error
+    if value <= 0:
+        raise ValueError(f"{name} must be positive")
+    return value
+
+
+MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.1-flash-lite")
+BATCH_SIZE = _positive_env("GEMINI_BATCH_SIZE", 5000, int)
+CONCURRENCY = _positive_env("GEMINI_CONCURRENCY", 3, int)
+INPUT_USD_PER_MILLION = _positive_env(
+    "GEMINI_INPUT_COST_PER_MILLION", 0.125, float
+)
+OUTPUT_USD_PER_MILLION = _positive_env(
+    "GEMINI_OUTPUT_COST_PER_MILLION", 0.75, float
+)
 TERMINAL_STATES = {
     "JOB_STATE_SUCCEEDED",
     "JOB_STATE_FAILED",
@@ -150,7 +170,7 @@ def _state_name(state):
     return getattr(state, "name", state) or "JOB_STATE_PENDING"
 
 
-def _submit_one(work_dir, entry, client):
+def _submit_one(work_dir, entry, client, model):
     uploaded_file = entry.get("uploaded_file")
     try:
         if not uploaded_file:
@@ -164,7 +184,7 @@ def _submit_one(work_dir, entry, client):
             )
             uploaded_file = uploaded.name
         job = client.batches.create(
-            model=MODEL,
+            model=model,
             src=uploaded_file,
             config={"display_name": Path(entry["input_file"]).stem},
         )
@@ -189,6 +209,7 @@ def submit_batches(work_dir, concurrency=3, client=None):
         raise ValueError("concurrency must be positive")
     manifest_path = work_dir / "jobs.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    model = manifest.get("model") or MODEL
     pending = [
         (index, entry.copy())
         for index, entry in enumerate(manifest.get("jobs", []))
@@ -200,7 +221,7 @@ def submit_batches(work_dir, concurrency=3, client=None):
     client = client or gemini_client()
     with ThreadPoolExecutor(max_workers=min(concurrency, len(pending))) as pool:
         futures = {
-            pool.submit(_submit_one, work_dir, entry, client): index
+            pool.submit(_submit_one, work_dir, entry, client, model): index
             for index, entry in pending
         }
         for future in as_completed(futures):
@@ -403,10 +424,10 @@ def build_parser():
         type=Path,
         default=BASE_DIR / "website_status_prompt.txt",
     )
-    prepare.add_argument("--batch-size", type=int, default=5000)
+    prepare.add_argument("--batch-size", type=int, default=BATCH_SIZE)
 
     submit = commands.add_parser("submit")
-    submit.add_argument("--concurrency", type=int, default=3)
+    submit.add_argument("--concurrency", type=int, default=CONCURRENCY)
 
     collect = commands.add_parser("collect")
     collect.add_argument("--wait", action="store_true")
