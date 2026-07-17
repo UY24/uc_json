@@ -81,6 +81,9 @@ class PrepareTests(unittest.TestCase):
             [1, 1],
         )
         self.assertEqual(manifest["jobs"][0]["state"], "PREPARED")
+        self.assertIsNone(manifest["jobs"][0]["submitted_at"])
+        self.assertIsNone(manifest["jobs"][0]["completed_at"])
+        self.assertIsNone(manifest["jobs"][0]["elapsed_seconds"])
 
     def test_prepare_rejects_empty_prompt_invalid_json_and_batch_size(self):
         self.write_website("aaa", [])
@@ -190,8 +193,9 @@ class SubmitTests(unittest.TestCase):
     def test_submit_records_jobs_and_does_not_submit_twice(self):
         client = FakeClient()
 
-        categoriser.submit_batches(self.work_dir, concurrency=2, client=client)
-        categoriser.submit_batches(self.work_dir, concurrency=2, client=client)
+        with patch("llm_categoriser.time.time", return_value=100.0):
+            categoriser.submit_batches(self.work_dir, concurrency=2, client=client)
+            categoriser.submit_batches(self.work_dir, concurrency=2, client=client)
 
         manifest = json.loads((self.work_dir / "jobs.json").read_text())
         self.assertEqual(
@@ -204,6 +208,10 @@ class SubmitTests(unittest.TestCase):
         )
         self.assertEqual(len(client.files.upload_calls), 2)
         self.assertEqual(len(client.batches.create_calls), 2)
+        self.assertEqual(
+            [job["submitted_at"] for job in manifest["jobs"]],
+            [100.0, 100.0],
+        )
 
     def test_submit_keeps_other_jobs_when_one_creation_fails(self):
         client = FakeClient(fail_src="files/batch-00001")
@@ -402,6 +410,9 @@ class CollectTests(unittest.TestCase):
                             "state": "JOB_STATE_PENDING",
                             "error": None,
                             "raw_result": None,
+                            "submitted_at": 100.0,
+                            "completed_at": None,
+                            "elapsed_seconds": None,
                         }
                     ],
                 }
@@ -429,8 +440,9 @@ class CollectTests(unittest.TestCase):
             self.result_content,
         )
 
-        categoriser.collect_batches(self.work_dir, client=client)
-        categoriser.collect_batches(self.work_dir, client=client)
+        with patch("llm_categoriser.time.time", return_value=112.5):
+            categoriser.collect_batches(self.work_dir, client=client)
+            categoriser.collect_batches(self.work_dir, client=client)
 
         manifest = json.loads((self.work_dir / "jobs.json").read_text())
         self.assertEqual(
@@ -438,6 +450,8 @@ class CollectTests(unittest.TestCase):
             "raw_results/batch-00001-results.jsonl",
         )
         self.assertEqual(client.files.download_calls, ["files/results"])
+        self.assertEqual(manifest["jobs"][0]["completed_at"], 112.5)
+        self.assertEqual(manifest["jobs"][0]["elapsed_seconds"], 12.5)
         row = json.loads((self.work_dir / "results.jsonl").read_text())
         self.assertEqual(row["status"], "working")
 
@@ -481,6 +495,76 @@ class CollectTests(unittest.TestCase):
         collect = parser.parse_args(["collect", "--wait"])
         self.assertTrue(collect.wait)
         self.assertEqual(collect.poll_seconds, 30)
+
+    def test_run_prepares_submits_collects_and_prints_batch_timing(self):
+        submitted = {
+            "jobs": [
+                {
+                    "input_file": f"inputs/batch-{index:05d}.jsonl",
+                    "job_name": f"batches/job-{index}",
+                    "state": "JOB_STATE_PENDING",
+                    "error": None,
+                }
+                for index in range(1, 4)
+            ]
+        }
+        completed = {
+            "jobs": [
+                {
+                    **job,
+                    "state": "JOB_STATE_SUCCEEDED",
+                    "elapsed_seconds": 12.5 + index,
+                }
+                for index, job in enumerate(submitted["jobs"])
+            ]
+        }
+        client = object()
+        with (
+            patch(
+                "llm_categoriser.prepare_batches",
+                return_value=[{"request_count": 5}] * 3,
+            ) as prepare,
+            patch("llm_categoriser.submit_batches", return_value=submitted) as submit,
+            patch(
+                "llm_categoriser.collect_batches",
+                return_value=(completed, [{}] * 15, {"total_cost_usd": 0.01, "failed_requests": 0}),
+            ) as collect,
+            patch("llm_categoriser.gemini_client", return_value=client),
+            patch("llm_categoriser.time.monotonic", side_effect=[10.0, 16.0]),
+            patch("builtins.print") as output,
+        ):
+            status = categoriser.main(
+                [
+                    "--work-dir",
+                    "/tmp/batches",
+                    "run",
+                    "--input-dir",
+                    "/tmp/output",
+                    "--prompt",
+                    "/tmp/prompt.txt",
+                    "--batch-size",
+                    "5",
+                    "--concurrency",
+                    "3",
+                    "--poll-seconds",
+                    "0",
+                ]
+            )
+
+        self.assertEqual(status, 0)
+        prepare.assert_called_once_with(
+            Path("/tmp/output"),
+            Path("/tmp/prompt.txt"),
+            Path("/tmp/batches"),
+            5,
+        )
+        submit.assert_called_once_with(Path("/tmp/batches"), 3, client)
+        collect.assert_called_once_with(Path("/tmp/batches"), True, 0, client)
+        text = "\n".join(str(call.args[0]) for call in output.call_args_list)
+        self.assertIn("batches/job-1", text)
+        self.assertIn("elapsed_seconds=12.5", text)
+        self.assertIn("results=15", text)
+        self.assertIn("total_seconds=6.0", text)
 
 
 if __name__ == "__main__":

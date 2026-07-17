@@ -78,8 +78,20 @@ python llm_categoriser.py collect
 python llm_categoriser.py collect --wait
 ```
 
+Or run the complete LLM phase—prepare, submit, wait, collect, and combine—with
+one command:
+
+```bash
+python llm_categoriser.py run
+```
+
+`llm_batches/jobs.json` stores each Gemini Batch ID in `job_name`, its current
+state, submission/completion timestamps, and elapsed seconds. `run` prints this
+information plus total runtime and cost. All Batch responses are merged into
+one `results.jsonl`.
+
 Generated inputs, job state, raw responses, normalized `results.jsonl`, and
-`cost_summary.json` are stored under ignored `llm_batches/`. Only `submit`
-creates billable work. The default stable `gemini-3.1-flash-lite` Batch prices
+`cost_summary.json` are stored under ignored `llm_batches/`. `submit` and `run`
+create billable work. The default stable `gemini-3.1-flash-lite` Batch prices
 verified on 2026-07-17 are $0.125 per million input tokens and $0.75 per million
 output/thinking tokens.

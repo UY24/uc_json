@@ -150,6 +150,9 @@ def prepare_batches(input_dir, prompt_path, work_dir, batch_size=5000):
                 "state": "PREPARED",
                 "error": None,
                 "raw_result": None,
+                "submitted_at": None,
+                "completed_at": None,
+                "elapsed_seconds": None,
             }
         )
 
@@ -193,6 +196,7 @@ def _submit_one(work_dir, entry, client, model):
             "job_name": job.name,
             "state": _state_name(job.state),
             "error": None,
+            "submitted_at": time.time(),
         }
     except Exception as error:
         return {
@@ -383,6 +387,14 @@ def collect_batches(
             if state not in TERMINAL_STATES:
                 all_terminal = False
                 continue
+            if entry.get("completed_at") is None:
+                entry["completed_at"] = time.time()
+                submitted_at = entry.get("submitted_at")
+                entry["elapsed_seconds"] = (
+                    round(entry["completed_at"] - submitted_at, 3)
+                    if submitted_at is not None
+                    else None
+                )
             if state == "JOB_STATE_SUCCEEDED":
                 destination = getattr(job, "dest", None)
                 result_file = getattr(destination, "file_name", None)
@@ -432,12 +444,70 @@ def build_parser():
     collect = commands.add_parser("collect")
     collect.add_argument("--wait", action="store_true")
     collect.add_argument("--poll-seconds", type=int, default=30)
+
+    run = commands.add_parser("run")
+    run.add_argument("--input-dir", type=Path, default=BASE_DIR / "output")
+    run.add_argument(
+        "--prompt",
+        type=Path,
+        default=BASE_DIR / "website_status_prompt.txt",
+    )
+    run.add_argument("--batch-size", type=int, default=BATCH_SIZE)
+    run.add_argument("--concurrency", type=int, default=CONCURRENCY)
+    run.add_argument("--poll-seconds", type=int, default=30)
     return parser
 
 
 def main(argv=None):
     args = build_parser().parse_args(argv)
     try:
+        if args.command == "run":
+            started_at = time.monotonic()
+            jobs = prepare_batches(
+                args.input_dir,
+                args.prompt,
+                args.work_dir,
+                args.batch_size,
+            )
+            print(
+                f"prepared_requests={sum(job['request_count'] for job in jobs)} "
+                f"batches={len(jobs)}"
+            )
+            client = gemini_client()
+            manifest = submit_batches(
+                args.work_dir,
+                args.concurrency,
+                client,
+            )
+            for job in manifest["jobs"]:
+                print(
+                    f"submitted_batch={Path(job['input_file']).stem} "
+                    f"job_name={job.get('job_name')} state={job['state']}"
+                )
+            manifest, rows, summary = collect_batches(
+                args.work_dir,
+                True,
+                args.poll_seconds,
+                client,
+            )
+            for job in manifest["jobs"]:
+                print(
+                    f"batch={Path(job['input_file']).stem} "
+                    f"job_name={job.get('job_name')} state={job['state']} "
+                    f"elapsed_seconds={job.get('elapsed_seconds')}"
+                )
+            total_seconds = round(time.monotonic() - started_at, 3)
+            print(
+                f"results={len(rows)} total_seconds={total_seconds} "
+                f"cost_usd={summary['total_cost_usd']:.8f}"
+            )
+            failed = summary["failed_requests"] or any(
+                job.get("error")
+                or job.get("state") != "JOB_STATE_SUCCEEDED"
+                for job in manifest["jobs"]
+            )
+            return 1 if failed else 0
+
         if args.command == "prepare":
             jobs = prepare_batches(
                 args.input_dir,
