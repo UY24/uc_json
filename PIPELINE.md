@@ -35,7 +35,7 @@ page_text_snippet
 - `title`: Provides the page's main browser title.
 - `headers`: Keeps up to ten unique, cleaned `h1` through `h6` headings in page order.
 - `image_alt_tags`: Keeps up to fifteen random, unique, cleaned, non-empty image alt texts.
-- `page_text_snippet`: Provides up to five random, unique page-content items containing more than 10 cleaned words.
+- `page_text_snippet`: Provides up to five unique page-content items, prioritized by cleaned word count from largest to smallest.
 
 `input_url`, `img_tag_count`, `status_code`, `error-comment`, `is_go_daddy`, `final_result`, raw HTML and all other source fields are excluded.
 
@@ -61,11 +61,12 @@ https://www.goodreads.com/blog/show/3146?ref=literalsummer_eb
 3. Keep the first ten unique, non-empty `<h1>` through `<h6>` values in page order.
 4. Keep up to fifteen random, unique, cleaned, non-empty `<img alt>` values.
 5. Collect valid `<p>` elements and leaf `<div>` and `<span>` elements.
-6. Keep unique candidates containing more than 10 cleaned words.
-7. Truncate each candidate to its first 50 words and append `...` when truncated.
-8. Randomly select up to five candidates and return them as a list.
-9. Ignore candidates inside navigation, header, footer, aside, script and style elements.
-10. Return empty lists when the body is missing or cannot be parsed.
+6. Rank candidates containing more than 10 cleaned words from largest to smallest.
+7. Fill remaining slots with candidates containing 5 to 10 words, also largest first.
+8. Keep at most five unique candidates.
+9. Truncate each candidate to its first 50 words and append `...` when truncated.
+10. Ignore candidates inside navigation, header, footer, aside, script and style elements.
+11. Return empty lists when the body is missing or cannot be parsed.
 
 ## Text Cleanup
 

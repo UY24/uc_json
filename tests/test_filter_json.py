@@ -91,8 +91,9 @@ class FilterJsonTests(unittest.TestCase):
         self.assertEqual(
             result["page_text_snippet"],
             [
-                closest.replace(",", ""),
                 " ".join(long.split()[:50]) + "...",
+                closest.replace(",", ""),
+                short,
             ],
         )
         self.assertEqual(len(result["anchor_tags_list"]), 5)
@@ -113,18 +114,21 @@ class FilterJsonTests(unittest.TestCase):
 
         result = processor._filter_artifact(artifact)
 
-        self.assertCountEqual(
+        self.assertEqual(
             result["page_text_snippet"],
             [" ".join(paragraph.split()[:50]) + "...", division, span],
         )
 
-    def test_ignores_short_nested_duplicate_and_excluded_content(self):
+    def test_fills_remaining_slots_with_five_to_ten_word_content(self):
         short = " ".join(f"short{i}" for i in range(10))
+        five = "one two three four five"
+        four = "one two three four"
         excerpt = " ".join(f"detail{i}." for i in range(42))
         artifact = {
             "url_raw_body": (
                 f"<header><p>{'header ' * 45}</p></header>"
                 f"<p>{short}</p>"
+                f"<p>{five}</p><p>{four}</p>"
                 f"<div><span>{excerpt}</span></div>"
                 f"<div>{excerpt}</div>"
             )
@@ -134,22 +138,33 @@ class FilterJsonTests(unittest.TestCase):
 
         self.assertEqual(
             result["page_text_snippet"],
-            [excerpt.replace(".", "")],
+            [excerpt.replace(".", ""), short, five],
         )
 
-    def test_randomly_limits_page_text_snippet_to_five_items(self):
-        paragraphs = [
-            " ".join(f"content{number}x{word}" for word in range(41))
-            for number in range(7)
-        ]
+    def test_keeps_five_largest_page_text_snippets(self):
+        sizes = [11, 30, 60, 20, 12, 25]
+        paragraphs = {
+            size: " ".join(f"content{size}x{word}" for word in range(size))
+            for size in sizes
+        }
         artifact = {
-            "url_raw_body": "".join(f"<p>{value}</p>" for value in paragraphs)
+            "url_raw_body": "".join(
+                f"<p>{paragraphs[size]}</p>" for size in sizes
+            )
         }
 
-        with patch("random.sample", side_effect=lambda values, count: values[:count]):
-            result = processor._filter_artifact(artifact)
+        result = processor._filter_artifact(artifact)
 
-        self.assertEqual(result["page_text_snippet"], paragraphs[:5])
+        self.assertEqual(
+            result["page_text_snippet"],
+            [
+                " ".join(paragraphs[60].split()[:50]) + "...",
+                paragraphs[30],
+                paragraphs[25],
+                paragraphs[20],
+                paragraphs[12],
+            ],
+        )
 
     def test_missing_html_returns_empty_extracted_fields(self):
         result = processor._filter_artifact({"url_raw_body": ""})

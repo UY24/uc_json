@@ -88,7 +88,7 @@ def _image_alt_tags(root):
 
 def _page_text_snippets(root):
     candidates = []
-    for element in root.xpath("//p | //div | //span"):
+    for order, element in enumerate(root.xpath("//p | //div | //span")):
         tag = str(element.tag).lower()
         if not _allowed(element):
             continue
@@ -96,9 +96,16 @@ def _page_text_snippets(root):
             continue
         words = _clean_text(element.text_content()).split()
         value = " ".join(words[:50]) + ("..." if len(words) > 50 else "")
-        if len(words) > 10 and value not in candidates:
-            candidates.append(value)
-    return random.sample(candidates, min(5, len(candidates)))
+        if len(words) >= 5:
+            candidates.append((-len(words), order, value))
+
+    values = []
+    for _, _, value in sorted(candidates):
+        if value not in values:
+            values.append(value)
+        if len(values) == 5:
+            break
+    return values
 
 
 def _extract_html_summary(raw_html):
