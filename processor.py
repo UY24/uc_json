@@ -77,6 +77,15 @@ def _headers(root):
     return values
 
 
+def _image_alt_tags(root):
+    values = []
+    for element in root.xpath("//img[@alt]"):
+        value = _clean_text(element.get("alt"))
+        if value and value not in values:
+            values.append(value)
+    return random.sample(values, min(15, len(values)))
+
+
 def _page_text_snippets(root):
     candidates = []
     for element in root.xpath("//p | //div | //span"):
@@ -86,8 +95,8 @@ def _page_text_snippets(root):
         if tag != "p" and element.xpath(".//p | .//div | .//span"):
             continue
         words = _clean_text(element.text_content()).split()
-        value = " ".join(words[:50])
-        if len(words) > 40 and value not in candidates:
+        value = " ".join(words[:50]) + ("..." if len(words) > 50 else "")
+        if len(words) > 10 and value not in candidates:
             candidates.append(value)
     return random.sample(candidates, min(5, len(candidates)))
 
@@ -96,6 +105,7 @@ def _extract_html_summary(raw_html):
     empty = {
         "title": "",
         "headers": [],
+        "image_alt_tags": [],
         "page_text_snippet": [],
     }
     if not raw_html:
@@ -109,6 +119,7 @@ def _extract_html_summary(raw_html):
     return {
         "title": _clean_text(titles[0].text_content()) if titles else "",
         "headers": _headers(root),
+        "image_alt_tags": _image_alt_tags(root),
         "page_text_snippet": _page_text_snippets(root),
     }
 
@@ -116,10 +127,8 @@ def _extract_html_summary(raw_html):
 def _filter_artifact(artifact):
     summary = _extract_html_summary(artifact.get("url_raw_body") or "")
     return {
-        "input_url": artifact.get("input_url") or "",
         "word_count": artifact.get("wc"),
         "anchor_tag_count": artifact.get("anchor_tag_count"),
         "anchor_tags_list": _anchor_paths(artifact.get("anchor_tagst") or []),
-        "img_tag_count": artifact.get("img_tag_count"),
         **summary,
     }

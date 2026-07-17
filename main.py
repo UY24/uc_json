@@ -30,7 +30,13 @@ def download_one(row, output_dir, raw_dir):
     if output_path.exists() and raw_path.exists():
         try:
             existing = json.loads(output_path.read_text(encoding="utf-8"))
-            if isinstance(existing, dict) and "headers" in existing:
+            if (
+                isinstance(existing, dict)
+                and "headers" in existing
+                and "image_alt_tags" in existing
+                and "input_url" not in existing
+                and "img_tag_count" not in existing
+            ):
                 return "skipped", hashval
         except (OSError, json.JSONDecodeError):
             pass

@@ -46,6 +46,7 @@ class FilterJsonTests(unittest.TestCase):
                 <h1>Fourth Heading</h1>
                 <h2>Our, Services!</h2><h2>About Us</h2><h2>News</h2>
                 <h2>Contact</h2><h2>Careers</h2><h2>Sixth Heading</h2>
+                <img alt="Example, Logo!">
                 <p>{short}</p><p>{closest}</p><p>{long}</p>
                 </body></html>
             """,
@@ -60,19 +61,18 @@ class FilterJsonTests(unittest.TestCase):
         self.assertEqual(
             set(result),
             {
-                "input_url",
                 "word_count",
                 "anchor_tag_count",
                 "anchor_tags_list",
-                "img_tag_count",
                 "title",
                 "headers",
+                "image_alt_tags",
                 "page_text_snippet",
             },
         )
-        self.assertEqual(result["input_url"], artifact["input_url"])
         self.assertEqual(result["word_count"], 500)
         self.assertEqual(result["title"], "Example Company")
+        self.assertEqual(result["image_alt_tags"], ["Example Logo"])
         self.assertEqual(
             result["headers"],
             [
@@ -92,7 +92,7 @@ class FilterJsonTests(unittest.TestCase):
             result["page_text_snippet"],
             [
                 closest.replace(",", ""),
-                " ".join(long.split()[:50]),
+                " ".join(long.split()[:50]) + "...",
             ],
         )
         self.assertEqual(len(result["anchor_tags_list"]), 5)
@@ -101,7 +101,7 @@ class FilterJsonTests(unittest.TestCase):
             result["anchor_tags_list"],
         )
 
-    def test_collects_paragraph_leaf_div_and_leaf_span_over_40_words(self):
+    def test_collects_paragraph_leaf_div_and_leaf_span_over_10_words(self):
         paragraph = " ".join(f"paragraph{i}" for i in range(60))
         division = " ".join(f"division{i}" for i in range(44))
         span = " ".join(f"span{i}" for i in range(41))
@@ -115,11 +115,11 @@ class FilterJsonTests(unittest.TestCase):
 
         self.assertCountEqual(
             result["page_text_snippet"],
-            [" ".join(paragraph.split()[:50]), division, span],
+            [" ".join(paragraph.split()[:50]) + "...", division, span],
         )
 
     def test_ignores_short_nested_duplicate_and_excluded_content(self):
-        short = " ".join(f"short{i}" for i in range(40))
+        short = " ".join(f"short{i}" for i in range(10))
         excerpt = " ".join(f"detail{i}." for i in range(42))
         artifact = {
             "url_raw_body": (
@@ -156,6 +156,7 @@ class FilterJsonTests(unittest.TestCase):
 
         self.assertEqual(result["title"], "")
         self.assertEqual(result["headers"], [])
+        self.assertEqual(result["image_alt_tags"], [])
         self.assertEqual(result["page_text_snippet"], [])
 
     def test_headers_include_h1_through_h6_in_page_order(self):
@@ -169,6 +170,21 @@ class FilterJsonTests(unittest.TestCase):
         self.assertEqual(
             result["headers"],
             [f"Heading {number}" for number in range(1, 7)],
+        )
+
+    def test_randomly_keeps_fifteen_unique_cleaned_image_alt_tags(self):
+        images = "".join(
+            f'<img alt="Image, {number}!">'
+            for number in range(17)
+        )
+        images += '<img alt="Image, 0!"><img alt="   ">'
+
+        with patch("random.sample", side_effect=lambda values, count: values[:count]):
+            result = processor._filter_artifact({"url_raw_body": images})
+
+        self.assertEqual(
+            result["image_alt_tags"],
+            [f"Image {number}" for number in range(15)],
         )
 
 if __name__ == "__main__":

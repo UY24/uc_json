@@ -18,28 +18,26 @@ function is `process_line`; `main.py` handles CSV rows and saving separately.
 ## Output Fields
 
 ```text
-input_url
 word_count
 anchor_tag_count
 anchor_tags_list
-img_tag_count
 title
 headers
+image_alt_tags
 page_text_snippet
 ```
 
 ### Why These Fields Are Retained
 
-- `input_url`: Identifies the website that was checked.
 - `word_count`: Keeps the original page word count and indicates whether the page has substantial content.
 - `anchor_tag_count`: Shows how many links and navigation elements exist.
 - `anchor_tags_list`: Provides up to five randomly sampled complete paths without domains, query strings, or fragments.
-- `img_tag_count`: Shows whether the page has visual content and normal website structure.
 - `title`: Provides the page's main browser title.
 - `headers`: Keeps up to ten unique, cleaned `h1` through `h6` headings in page order.
-- `page_text_snippet`: Provides up to five random, unique page-content items containing 41 to 50 cleaned words.
+- `image_alt_tags`: Keeps up to fifteen random, unique, cleaned, non-empty image alt texts.
+- `page_text_snippet`: Provides up to five random, unique page-content items containing more than 10 cleaned words.
 
-`status_code`, `error-comment`, `is_go_daddy`, `final_result`, raw HTML and all other source fields are excluded.
+`input_url`, `img_tag_count`, `status_code`, `error-comment`, `is_go_daddy`, `final_result`, raw HTML and all other source fields are excluded.
 
 ## Anchor Processing
 
@@ -61,23 +59,24 @@ https://www.goodreads.com/blog/show/3146?ref=literalsummer_eb
 1. Parse `url_raw_body` with the free `lxml` library.
 2. Extract the page `<title>`.
 3. Keep the first ten unique, non-empty `<h1>` through `<h6>` values in page order.
-4. Collect valid `<p>` elements and leaf `<div>` and `<span>` elements.
-5. Keep unique candidates containing more than 40 cleaned words.
-6. Truncate each candidate to its first 50 words.
-7. Randomly select up to five candidates and return them as a list.
-8. Ignore candidates inside navigation, header, footer, aside, script and style elements.
-9. Return an empty snippet list when the body is missing or cannot be parsed.
+4. Keep up to fifteen random, unique, cleaned, non-empty `<img alt>` values.
+5. Collect valid `<p>` elements and leaf `<div>` and `<span>` elements.
+6. Keep unique candidates containing more than 10 cleaned words.
+7. Truncate each candidate to its first 50 words and append `...` when truncated.
+8. Randomly select up to five candidates and return them as a list.
+9. Ignore candidates inside navigation, header, footer, aside, script and style elements.
+10. Return empty lists when the body is missing or cannot be parsed.
 
 ## Text Cleanup
 
-For `title`, headings and `page_text_snippet`:
+For `title`, `headers`, `image_alt_tags` and `page_text_snippet`:
 
 1. Normalize Unicode and whitespace.
 2. Remove control characters, emojis and special symbols.
 3. Replace every punctuation character with a space.
 4. Collapse repeated spaces.
 
-`input_url` remains unchanged because removing its punctuation would break the URL.
+The truncation marker `...` is added to long snippets after cleanup.
 `anchor_tags_list` also preserves punctuation because it stores URL paths.
 
 ## Run the Complete Pipeline

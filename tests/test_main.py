@@ -54,11 +54,12 @@ class DownloaderTests(unittest.TestCase):
             result = processor.process_line(wrapped, raw_path)
             saved_raw = json.loads(raw_path.read_text())
 
-        self.assertEqual(result["input_url"], "https://example.com/")
         self.assertEqual(result["word_count"], 314)
         self.assertEqual(result["title"], "Example Site")
         self.assertEqual(result["page_text_snippet"], [paragraph])
         self.assertNotIn("url_raw_body", result)
+        self.assertNotIn("input_url", result)
+        self.assertNotIn("img_tag_count", result)
         self.assertEqual(saved_raw, artifact)
         fetch.assert_called_once_with("https://bucket/file.json.br")
 
@@ -71,8 +72,8 @@ class DownloaderTests(unittest.TestCase):
 
     def test_saves_processed_json_and_skips_existing_file(self):
         result = {
-            "input_url": "https://example.com/",
             "headers": [],
+            "image_alt_tags": [],
             "page_text_snippet": [],
         }
 
@@ -99,12 +100,22 @@ class DownloaderTests(unittest.TestCase):
             process.assert_called_once_with(row["s3status"], raw_dir / "abc.json")
 
     def test_reprocesses_existing_output_with_old_heading_schema(self):
-        result = {"headers": ["Current Heading"]}
+        result = {
+            "headers": ["Current Heading"],
+            "image_alt_tags": [],
+        }
 
         with tempfile.TemporaryDirectory() as directory:
             output_dir = Path(directory) / "output"
             raw_dir = Path(directory) / "json"
-            main.save_result({"h1_tags": ["Old Heading"]}, output_dir / "abc.json")
+            main.save_result(
+                {
+                    "headers": ["Old Heading"],
+                    "input_url": "https://example.com/",
+                    "img_tag_count": 2,
+                },
+                output_dir / "abc.json",
+            )
             main.save_result({"raw": True}, raw_dir / "abc.json")
             row = {"hashval": "abc", "s3status": "https://bucket/abc.json.br"}
 
