@@ -1,0 +1,9 @@
+Determine whether the extracted information represents a real, functioning website.
+
+Return working when the fields together contain coherent and meaningful content for a legitimate business, organization, publication, service, product, or other website.
+
+Return not_working when the information indicates an error page, 404 page, access denial, maintenance page, expired or parked domain, domain-for-sale page, placeholder, empty page, or meaningless content.
+
+Do not mark a website as not working only because an individual field is empty or a count is low. Consider all supplied fields together.
+
+Use only the supplied website JSON. Give one concise sentence explaining the strongest evidence.

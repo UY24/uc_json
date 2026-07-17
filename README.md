@@ -44,3 +44,37 @@ The filter keeps `word_count`, `anchor_tag_count`, up to five random non-root pa
 ```bash
 uc_json/.venv/bin/python -m unittest discover -s uc_json/tests -v
 ```
+
+## Gemini Batch Classification
+
+Set the API key only when submitting or collecting:
+
+```bash
+export GEMINI_API_KEY="your-key"
+```
+
+Prepare keyed JSONL files from compact `output/*.json` files without making a
+network request:
+
+```bash
+python llm_categoriser.py prepare --input-dir output --batch-size 5000
+```
+
+Upload the prepared files and create asynchronous Batch jobs:
+
+```bash
+python llm_categoriser.py submit --concurrency 3
+```
+
+Check once, or wait until every job is terminal:
+
+```bash
+python llm_categoriser.py collect
+python llm_categoriser.py collect --wait
+```
+
+Generated inputs, job state, raw responses, normalized `results.jsonl`, and
+`cost_summary.json` are stored under ignored `llm_batches/`. Only `submit`
+creates billable work. The default stable `gemini-3.1-flash-lite` Batch prices
+verified on 2026-07-17 are $0.125 per million input tokens and $0.75 per million
+output/thinking tokens.
