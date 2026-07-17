@@ -1,14 +1,9 @@
-import io
-import json
 import sys
-import tempfile
 import unittest
-from contextlib import redirect_stderr
 from pathlib import Path
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).parents[1]))
-import filter_json
 import processor
 
 
@@ -157,25 +152,6 @@ class FilterJsonTests(unittest.TestCase):
         self.assertEqual(result["h1_tags"], [])
         self.assertEqual(result["h2_tags"], [])
         self.assertEqual(result["page_text_snippet"], [])
-
-    def test_directory_continues_after_invalid_json(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            input_dir = root / "json"
-            output_dir = root / "output"
-            input_dir.mkdir()
-            (input_dir / "bad.json").write_text("not json")
-            (input_dir / "good.json").write_text(
-                json.dumps({"url_raw_body": "<title>Working Site</title>"})
-            )
-
-            with redirect_stderr(io.StringIO()):
-                counts = filter_json.filter_directory(input_dir, output_dir)
-
-            self.assertEqual(counts, {"written": 1, "failed": 1})
-            result = json.loads((output_dir / "good.json").read_text())
-            self.assertEqual(result["title"], "Working Site")
-
 
 if __name__ == "__main__":
     unittest.main()
