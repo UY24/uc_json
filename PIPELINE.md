@@ -21,7 +21,7 @@ img_tag_count
 title
 h1_tags
 h2_tags
-url_visible_text
+page_text_snippet
 ```
 
 ### Why These Fields Are Retained
@@ -34,7 +34,7 @@ url_visible_text
 - `title`: Provides the page's main browser title.
 - `h1_tags`: Keeps up to three primary page headings.
 - `h2_tags`: Keeps up to five secondary page headings.
-- `url_visible_text`: Provides the valid paragraph, leaf div, or leaf span closest to 40 words.
+- `page_text_snippet`: Provides up to five random, unique page-content items containing 41 to 50 cleaned words.
 
 `status_code`, `error-comment`, `is_go_daddy`, `final_result`, raw HTML and all other source fields are excluded.
 
@@ -60,14 +60,15 @@ https://www.goodreads.com/blog/show/3146?ref=literalsummer_eb
 3. Keep the first three unique, non-empty `<h1>` values.
 4. Keep the first five unique, non-empty `<h2>` values.
 5. Collect valid `<p>` elements and leaf `<div>` and `<span>` elements.
-6. Select the candidate whose word count is closest to 40.
-7. Prefer `<p>`, then `<div>`, then `<span>` when candidates are equally close.
-8. Ignore candidates inside navigation, header, footer, aside, script and style elements.
-9. Return empty HTML fields when the body is missing or cannot be parsed.
+6. Keep unique candidates containing more than 40 cleaned words.
+7. Truncate each candidate to its first 50 words.
+8. Randomly select up to five candidates and return them as a list.
+9. Ignore candidates inside navigation, header, footer, aside, script and style elements.
+10. Return an empty snippet list when the body is missing or cannot be parsed.
 
 ## Text Cleanup
 
-For `title`, headings and `url_visible_text`:
+For `title`, headings and `page_text_snippet`:
 
 1. Normalize Unicode and whitespace.
 2. Remove control characters, emojis and special symbols.

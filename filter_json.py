@@ -10,7 +10,6 @@ from lxml import etree, html
 
 BASE_DIR = Path(__file__).parent
 EXCLUDED_TAGS = {"nav", "header", "footer", "aside", "script", "style"}
-TAG_PRIORITY = {"p": 0, "div": 1, "span": 2}
 
 
 def clean_text(value):
@@ -55,24 +54,28 @@ def _unique_tag_texts(root, tag, limit=3):
     return values
 
 
-def _closest_content(root):
+def _page_text_snippets(root):
     candidates = []
-    for order, element in enumerate(root.xpath("//p | //div | //span")):
+    for element in root.xpath("//p | //div | //span"):
         tag = str(element.tag).lower()
         if not _allowed(element):
             continue
         if tag != "p" and element.xpath(".//p | .//div | .//span"):
             continue
-        value = clean_text(element.text_content())
-        if value:
-            candidates.append(
-                (abs(len(value.split()) - 40), TAG_PRIORITY[tag], order, value)
-            )
-    return min(candidates)[3] if candidates else ""
+        words = clean_text(element.text_content()).split()
+        value = " ".join(words[:50])
+        if len(words) > 40 and value not in candidates:
+            candidates.append(value)
+    return random.sample(candidates, min(5, len(candidates)))
 
 
 def extract_html_summary(raw_html):
-    empty = {"title": "", "h1_tags": [], "h2_tags": [], "url_visible_text": ""}
+    empty = {
+        "title": "",
+        "h1_tags": [],
+        "h2_tags": [],
+        "page_text_snippet": [],
+    }
     if not raw_html:
         return empty
     try:
@@ -85,7 +88,7 @@ def extract_html_summary(raw_html):
         "title": clean_text(titles[0].text_content()) if titles else "",
         "h1_tags": _unique_tag_texts(root, "h1"),
         "h2_tags": _unique_tag_texts(root, "h2", 5),
-        "url_visible_text": _closest_content(root),
+        "page_text_snippet": _page_text_snippets(root),
     }
 
 

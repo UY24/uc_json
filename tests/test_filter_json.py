@@ -72,7 +72,7 @@ class FilterJsonTests(unittest.TestCase):
                 "title",
                 "h1_tags",
                 "h2_tags",
-                "url_visible_text",
+                "page_text_snippet",
             },
         )
         self.assertEqual(result["input_url"], artifact["input_url"])
@@ -86,17 +86,23 @@ class FilterJsonTests(unittest.TestCase):
             result["h2_tags"],
             ["Our Services", "About Us", "News", "Contact", "Careers"],
         )
-        self.assertEqual(result["url_visible_text"], closest.replace(",", ""))
+        self.assertEqual(
+            result["page_text_snippet"],
+            [
+                closest.replace(",", ""),
+                " ".join(long.split()[:50]),
+            ],
+        )
         self.assertEqual(len(result["anchor_tags_list"]), 5)
         self.assertIn(
             "/products/really-long-product-name/",
             result["anchor_tags_list"],
         )
 
-    def test_selects_closest_paragraph_leaf_div_or_leaf_span(self):
+    def test_collects_paragraph_leaf_div_and_leaf_span_over_40_words(self):
         paragraph = " ".join(f"paragraph{i}" for i in range(60))
         division = " ".join(f"division{i}" for i in range(44))
-        span = " ".join(f"span{i}" for i in range(39))
+        span = " ".join(f"span{i}" for i in range(41))
         artifact = {
             "url_raw_body": (
                 f"<p>{paragraph}</p><div>{division}</div><span>{span}</span>"
@@ -105,19 +111,43 @@ class FilterJsonTests(unittest.TestCase):
 
         result = filter_json.filter_artifact(artifact)
 
-        self.assertEqual(result["url_visible_text"], span)
+        self.assertCountEqual(
+            result["page_text_snippet"],
+            [" ".join(paragraph.split()[:50]), division, span],
+        )
 
-    def test_uses_leaf_div_only_when_no_paragraph_exists(self):
+    def test_ignores_short_nested_duplicate_and_excluded_content(self):
+        short = " ".join(f"short{i}" for i in range(40))
         excerpt = " ".join(f"detail{i}." for i in range(42))
         artifact = {
             "url_raw_body": (
-                f"<div><div>nested container</div></div><div>{excerpt}</div>"
+                f"<header><p>{'header ' * 45}</p></header>"
+                f"<p>{short}</p>"
+                f"<div><span>{excerpt}</span></div>"
+                f"<div>{excerpt}</div>"
             )
         }
 
         result = filter_json.filter_artifact(artifact)
 
-        self.assertEqual(result["url_visible_text"], excerpt.replace(".", ""))
+        self.assertEqual(
+            result["page_text_snippet"],
+            [excerpt.replace(".", "")],
+        )
+
+    def test_randomly_limits_page_text_snippet_to_five_items(self):
+        paragraphs = [
+            " ".join(f"content{number}x{word}" for word in range(41))
+            for number in range(7)
+        ]
+        artifact = {
+            "url_raw_body": "".join(f"<p>{value}</p>" for value in paragraphs)
+        }
+
+        with patch("random.sample", side_effect=lambda values, count: values[:count]):
+            result = filter_json.filter_artifact(artifact)
+
+        self.assertEqual(result["page_text_snippet"], paragraphs[:5])
 
     def test_missing_html_returns_empty_extracted_fields(self):
         result = filter_json.filter_artifact({"url_raw_body": ""})
@@ -125,7 +155,7 @@ class FilterJsonTests(unittest.TestCase):
         self.assertEqual(result["title"], "")
         self.assertEqual(result["h1_tags"], [])
         self.assertEqual(result["h2_tags"], [])
-        self.assertEqual(result["url_visible_text"], "")
+        self.assertEqual(result["page_text_snippet"], [])
 
     def test_directory_continues_after_invalid_json(self):
         with tempfile.TemporaryDirectory() as directory:
