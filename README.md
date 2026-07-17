@@ -1,6 +1,6 @@
 # uc_json
 
-Downloads Brotli-compressed JSON files from the `s3status` column of a CSV, then creates filtered JSON files for later LLM processing.
+Downloads Brotli-compressed JSON files from the `s3status` column of a CSV and saves compact JSON files for later LLM processing.
 
 ## Setup
 
@@ -13,7 +13,7 @@ uc_json/.venv/bin/python -m pip install -r uc_json/requirements.txt
 
 ## Run
 
-Download JSON files from the full CSV:
+Process every S3 link from the full CSV:
 
 ```bash
 uc_json/.venv/bin/python uc_json/main.py uc_json/csv/tmp_full.csv
@@ -25,15 +25,19 @@ For the three-row sample, use:
 uc_json/.venv/bin/python uc_json/main.py uc_json/csv/tmp3.csv
 ```
 
-Create filtered JSON files:
+Downloaded raw JSON files are written to `uc_json/json`. Compact files are written to `uc_json/output`.
 
-```bash
-uc_json/.venv/bin/python uc_json/filter_json.py
+In Python, `process_line(s3link)` downloads one artifact and returns its compact dictionary without saving it:
+
+```python
+from processor import process_line
+
+result = process_line(s3link)
 ```
 
-Downloaded files are written to `uc_json/json`. Filtered files are written to `uc_json/output`.
+To embed it in another codebase, copy `processor.py` and install `brotli` and `lxml`. `process_line` is the file's only public function. Pass an optional path as `process_line(s3link, raw_path)` when the decompressed source JSON should also be saved.
 
-The filter keeps `status_code`, `error-comment`, `is_go_daddy`, `wc`, `anchor_tag_count`, up to five short `anchor_tagst` paths, `img_tag_count`, `lang_detected`, and a cleaned, representative `url_visible_text` limited to 900 words. Text with 900 words or fewer is preserved after basic symbol and whitespace cleanup.
+The filter keeps `word_count`, `anchor_tag_count`, up to five random non-root paths without domains or query strings in `anchor_tags_list`, the page `title`, up to ten `headers`, up to fifteen random cleaned `image_alt_tags`, and `page_text_snippet`. Navigation/sidebar/footer headings and global site-header headings are excluded, while article headers inside `main` or `article` remain valid. Up to five H1 values are kept first, then remaining header slots are filled from H2 through H6. The snippet field keeps up to five unique paragraphs or leaf divs/spans, largest first. Text over 10 words is prioritized, then remaining slots use text with at least 5 words. Each item is limited to 50 words and receives `...` when truncated. Punctuation, decorative symbols, and extra whitespace are removed from extracted text.
 
 ## Test
 
