@@ -9,12 +9,13 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).parents[1]))
 import filter_json
+import processor
 
 
 class FilterJsonTests(unittest.TestCase):
     def test_anchor_paths_keep_full_path_and_remove_query(self):
         with patch("random.sample", side_effect=lambda values, count: values):
-            result = filter_json.anchor_paths(
+            result = processor._anchor_paths(
                 [
                     "https://www.goodreads.com/",
                     "https://www.goodreads.com/blog/show/3146?"
@@ -59,7 +60,7 @@ class FilterJsonTests(unittest.TestCase):
             "random.sample",
             side_effect=lambda values, count: values[-count:],
         ):
-            result = filter_json.filter_artifact(artifact)
+            result = processor._filter_artifact(artifact)
 
         self.assertEqual(
             set(result),
@@ -109,7 +110,7 @@ class FilterJsonTests(unittest.TestCase):
             )
         }
 
-        result = filter_json.filter_artifact(artifact)
+        result = processor._filter_artifact(artifact)
 
         self.assertCountEqual(
             result["page_text_snippet"],
@@ -128,7 +129,7 @@ class FilterJsonTests(unittest.TestCase):
             )
         }
 
-        result = filter_json.filter_artifact(artifact)
+        result = processor._filter_artifact(artifact)
 
         self.assertEqual(
             result["page_text_snippet"],
@@ -145,12 +146,12 @@ class FilterJsonTests(unittest.TestCase):
         }
 
         with patch("random.sample", side_effect=lambda values, count: values[:count]):
-            result = filter_json.filter_artifact(artifact)
+            result = processor._filter_artifact(artifact)
 
         self.assertEqual(result["page_text_snippet"], paragraphs[:5])
 
     def test_missing_html_returns_empty_extracted_fields(self):
-        result = filter_json.filter_artifact({"url_raw_body": ""})
+        result = processor._filter_artifact({"url_raw_body": ""})
 
         self.assertEqual(result["title"], "")
         self.assertEqual(result["h1_tags"], [])

@@ -11,6 +11,9 @@
 7. Save that dictionary as `output/{hashval}.json`.
 8. Skip files already processed and continue past failed rows.
 
+All download and filtering logic lives in `processor.py`. Its only public
+function is `process_line`; `main.py` handles CSV rows and saving separately.
+
 ## Output Fields
 
 ```text

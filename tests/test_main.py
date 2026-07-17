@@ -1,5 +1,6 @@
 import json
 import io
+import inspect
 import sys
 import tempfile
 import unittest
@@ -11,12 +12,27 @@ import brotli
 
 sys.path.insert(0, str(Path(__file__).parents[1]))
 import main
+import processor
 
 
 class DownloaderTests(unittest.TestCase):
+    def test_process_line_comes_from_portable_processor_module(self):
+        self.assertEqual(main.process_line.__module__, "processor")
+        public_functions = [
+            name
+            for name, value in vars(processor).items()
+            if inspect.isfunction(value)
+            and value.__module__ == processor.__name__
+            and not name.startswith("_")
+        ]
+        self.assertEqual(public_functions, ["process_line"])
+
     def test_extracts_nested_s3_link(self):
         wrapped = "http://internal/decom?s3link=https%3A%2F%2Fbucket%2Ffile.json.br"
-        self.assertEqual(main.extract_s3_link(wrapped), "https://bucket/file.json.br")
+        self.assertEqual(
+            processor._extract_s3_link(wrapped),
+            "https://bucket/file.json.br",
+        )
 
     def test_process_line_downloads_and_returns_filtered_json(self):
         paragraph = " ".join(f"word{number}" for number in range(41))
@@ -31,8 +47,8 @@ class DownloaderTests(unittest.TestCase):
         compressed = brotli.compress(json.dumps(artifact).encode())
         wrapped = "http://internal/decom?s3link=https%3A%2F%2Fbucket%2Ffile.json.br"
 
-        with patch.object(main, "fetch_bytes", return_value=compressed) as fetch:
-            result = main.process_line(wrapped)
+        with patch.object(processor, "_fetch_bytes", return_value=compressed) as fetch:
+            result = processor.process_line(wrapped)
 
         self.assertEqual(result["input_url"], "https://example.com/")
         self.assertEqual(result["word_count"], 314)
@@ -44,9 +60,9 @@ class DownloaderTests(unittest.TestCase):
     def test_process_line_rejects_non_object_json(self):
         compressed = brotli.compress(b"[]")
 
-        with patch.object(main, "fetch_bytes", return_value=compressed):
+        with patch.object(processor, "_fetch_bytes", return_value=compressed):
             with self.assertRaisesRegex(ValueError, "JSON artifact is not an object"):
-                main.process_line("https://bucket/file.json.br")
+                processor.process_line("https://bucket/file.json.br")
 
     def test_saves_processed_json_and_skips_existing_file(self):
         result = {"input_url": "https://example.com/", "page_text_snippet": []}

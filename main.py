@@ -4,34 +4,11 @@ import json
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from urllib.parse import parse_qs, urlparse
-from urllib.request import urlopen
 
-import brotli
-
-from filter_json import filter_artifact
+from processor import process_line
 
 
 BASE_DIR = Path(__file__).parent
-
-
-def extract_s3_link(value):
-    return parse_qs(urlparse(value).query).get("s3link", [value])[0]
-
-
-def fetch_bytes(url):
-    with urlopen(url, timeout=30) as response:
-        return response.read()
-
-
-def process_line(s3link: str) -> dict:
-    text = brotli.decompress(
-        fetch_bytes(extract_s3_link(s3link.strip()))
-    ).decode("utf-8")
-    artifact = json.loads(text)
-    if not isinstance(artifact, dict):
-        raise ValueError("JSON artifact is not an object")
-    return filter_artifact(artifact)
 
 
 def save_result(result, path):
