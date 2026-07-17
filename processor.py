@@ -1,6 +1,7 @@
 import json
 import random
 import unicodedata
+from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 from urllib.request import urlopen
 
@@ -11,13 +12,17 @@ from lxml import etree, html
 _EXCLUDED_TAGS = {"nav", "header", "footer", "aside", "script", "style"}
 
 
-def process_line(s3link: str) -> dict:
+def process_line(s3link: str, raw_path=None) -> dict:
     text = brotli.decompress(
         _fetch_bytes(_extract_s3_link(s3link.strip()))
     ).decode("utf-8")
     artifact = json.loads(text)
     if not isinstance(artifact, dict):
         raise ValueError("JSON artifact is not an object")
+    if raw_path:
+        raw_path = Path(raw_path)
+        raw_path.parent.mkdir(parents=True, exist_ok=True)
+        raw_path.write_text(text, encoding="utf-8")
     return _filter_artifact(artifact)
 
 
@@ -61,13 +66,13 @@ def _allowed(element):
     )
 
 
-def _unique_tag_texts(root, tag, limit=3):
+def _headers(root):
     values = []
-    for element in root.xpath(f"//{tag}"):
+    for element in root.xpath("//h1 | //h2 | //h3 | //h4 | //h5 | //h6"):
         value = _clean_text(element.text_content())
         if value and value not in values:
             values.append(value)
-        if len(values) == limit:
+        if len(values) == 10:
             break
     return values
 
@@ -90,8 +95,7 @@ def _page_text_snippets(root):
 def _extract_html_summary(raw_html):
     empty = {
         "title": "",
-        "h1_tags": [],
-        "h2_tags": [],
+        "headers": [],
         "page_text_snippet": [],
     }
     if not raw_html:
@@ -104,8 +108,7 @@ def _extract_html_summary(raw_html):
     titles = root.xpath("//title")
     return {
         "title": _clean_text(titles[0].text_content()) if titles else "",
-        "h1_tags": _unique_tag_texts(root, "h1"),
-        "h2_tags": _unique_tag_texts(root, "h2", 5),
+        "headers": _headers(root),
         "page_text_snippet": _page_text_snippets(root),
     }
 

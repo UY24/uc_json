@@ -66,8 +66,7 @@ class FilterJsonTests(unittest.TestCase):
                 "anchor_tags_list",
                 "img_tag_count",
                 "title",
-                "h1_tags",
-                "h2_tags",
+                "headers",
                 "page_text_snippet",
             },
         )
@@ -75,12 +74,19 @@ class FilterJsonTests(unittest.TestCase):
         self.assertEqual(result["word_count"], 500)
         self.assertEqual(result["title"], "Example Company")
         self.assertEqual(
-            result["h1_tags"],
-            ["Main Heading", "Second Heading", "Third Heading"],
-        )
-        self.assertEqual(
-            result["h2_tags"],
-            ["Our Services", "About Us", "News", "Contact", "Careers"],
+            result["headers"],
+            [
+                "Main Heading",
+                "Second Heading",
+                "Third Heading",
+                "Fourth Heading",
+                "Our Services",
+                "About Us",
+                "News",
+                "Contact",
+                "Careers",
+                "Sixth Heading",
+            ],
         )
         self.assertEqual(
             result["page_text_snippet"],
@@ -149,9 +155,21 @@ class FilterJsonTests(unittest.TestCase):
         result = processor._filter_artifact({"url_raw_body": ""})
 
         self.assertEqual(result["title"], "")
-        self.assertEqual(result["h1_tags"], [])
-        self.assertEqual(result["h2_tags"], [])
+        self.assertEqual(result["headers"], [])
         self.assertEqual(result["page_text_snippet"], [])
+
+    def test_headers_include_h1_through_h6_in_page_order(self):
+        html = "".join(
+            f"<h{number}>Heading {number}!</h{number}>"
+            for number in range(1, 7)
+        )
+
+        result = processor._filter_artifact({"url_raw_body": html})
+
+        self.assertEqual(
+            result["headers"],
+            [f"Heading {number}" for number in range(1, 7)],
+        )
 
 if __name__ == "__main__":
     unittest.main()

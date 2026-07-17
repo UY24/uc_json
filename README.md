@@ -25,7 +25,7 @@ For the three-row sample, use:
 uc_json/.venv/bin/python uc_json/main.py uc_json/csv/tmp3.csv
 ```
 
-Compact files are written directly to `uc_json/output`.
+Downloaded raw JSON files are written to `uc_json/json`. Compact files are written to `uc_json/output`.
 
 In Python, `process_line(s3link)` downloads one artifact and returns its compact dictionary without saving it:
 
@@ -35,9 +35,9 @@ from processor import process_line
 result = process_line(s3link)
 ```
 
-To embed it in another codebase, copy `processor.py` and install `brotli` and `lxml`. `process_line` is the file's only public function. The CSV flow keeps saving separate in `main.py`.
+To embed it in another codebase, copy `processor.py` and install `brotli` and `lxml`. `process_line` is the file's only public function. Pass an optional path as `process_line(s3link, raw_path)` when the decompressed source JSON should also be saved.
 
-The filter keeps `input_url`, `word_count`, `anchor_tag_count`, up to five random non-root paths without domains or query strings in `anchor_tags_list`, `img_tag_count`, the page `title`, up to three `h1_tags`, up to five `h2_tags`, and `page_text_snippet`. The snippet field is a list of up to five random, unique paragraphs or leaf divs/spans containing more than 40 words, truncated to 50 words each. Punctuation and decorative symbols are removed from extracted human-readable text.
+The filter keeps `input_url`, `word_count`, `anchor_tag_count`, up to five random non-root paths without domains or query strings in `anchor_tags_list`, `img_tag_count`, the page `title`, up to ten `headers` from `h1` through `h6`, and `page_text_snippet`. The snippet field is a list of up to five random, unique paragraphs or leaf divs/spans containing more than 40 words, truncated to 50 words each. Punctuation and decorative symbols are removed from extracted human-readable text.
 
 ## Test
 

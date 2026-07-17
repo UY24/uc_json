@@ -6,10 +6,11 @@
 2. Get the compressed S3 URL from `s3status`.
 3. Pass the URL to `process_line(s3link)`.
 4. Download and Brotli-decompress the `.json.br` file.
-5. Validate the JSON and parse its `url_raw_body`.
-6. Return the compact dictionary from `process_line`.
-7. Save that dictionary as `output/{hashval}.json`.
-8. Skip files already processed and continue past failed rows.
+5. Save the decompressed source as `json/{hashval}.json`.
+6. Validate the JSON and parse its `url_raw_body`.
+7. Return the compact dictionary from `process_line`.
+8. Save that dictionary as `output/{hashval}.json`.
+9. Skip rows only when both files already exist and continue past failed rows.
 
 All download and filtering logic lives in `processor.py`. Its only public
 function is `process_line`; `main.py` handles CSV rows and saving separately.
@@ -23,8 +24,7 @@ anchor_tag_count
 anchor_tags_list
 img_tag_count
 title
-h1_tags
-h2_tags
+headers
 page_text_snippet
 ```
 
@@ -36,8 +36,7 @@ page_text_snippet
 - `anchor_tags_list`: Provides up to five randomly sampled complete paths without domains, query strings, or fragments.
 - `img_tag_count`: Shows whether the page has visual content and normal website structure.
 - `title`: Provides the page's main browser title.
-- `h1_tags`: Keeps up to three primary page headings.
-- `h2_tags`: Keeps up to five secondary page headings.
+- `headers`: Keeps up to ten unique, cleaned `h1` through `h6` headings in page order.
 - `page_text_snippet`: Provides up to five random, unique page-content items containing 41 to 50 cleaned words.
 
 `status_code`, `error-comment`, `is_go_daddy`, `final_result`, raw HTML and all other source fields are excluded.
@@ -61,14 +60,13 @@ https://www.goodreads.com/blog/show/3146?ref=literalsummer_eb
 
 1. Parse `url_raw_body` with the free `lxml` library.
 2. Extract the page `<title>`.
-3. Keep the first three unique, non-empty `<h1>` values.
-4. Keep the first five unique, non-empty `<h2>` values.
-5. Collect valid `<p>` elements and leaf `<div>` and `<span>` elements.
-6. Keep unique candidates containing more than 40 cleaned words.
-7. Truncate each candidate to its first 50 words.
-8. Randomly select up to five candidates and return them as a list.
-9. Ignore candidates inside navigation, header, footer, aside, script and style elements.
-10. Return an empty snippet list when the body is missing or cannot be parsed.
+3. Keep the first ten unique, non-empty `<h1>` through `<h6>` values in page order.
+4. Collect valid `<p>` elements and leaf `<div>` and `<span>` elements.
+5. Keep unique candidates containing more than 40 cleaned words.
+6. Truncate each candidate to its first 50 words.
+7. Randomly select up to five candidates and return them as a list.
+8. Ignore candidates inside navigation, header, footer, aside, script and style elements.
+9. Return an empty snippet list when the body is missing or cannot be parsed.
 
 ## Text Cleanup
 

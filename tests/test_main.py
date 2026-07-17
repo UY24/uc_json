@@ -47,14 +47,19 @@ class DownloaderTests(unittest.TestCase):
         compressed = brotli.compress(json.dumps(artifact).encode())
         wrapped = "http://internal/decom?s3link=https%3A%2F%2Fbucket%2Ffile.json.br"
 
-        with patch.object(processor, "_fetch_bytes", return_value=compressed) as fetch:
-            result = processor.process_line(wrapped)
+        with tempfile.TemporaryDirectory() as directory, patch.object(
+            processor, "_fetch_bytes", return_value=compressed
+        ) as fetch:
+            raw_path = Path(directory) / "raw.json"
+            result = processor.process_line(wrapped, raw_path)
+            saved_raw = json.loads(raw_path.read_text())
 
         self.assertEqual(result["input_url"], "https://example.com/")
         self.assertEqual(result["word_count"], 314)
         self.assertEqual(result["title"], "Example Site")
         self.assertEqual(result["page_text_snippet"], [paragraph])
         self.assertNotIn("url_raw_body", result)
+        self.assertEqual(saved_raw, artifact)
         fetch.assert_called_once_with("https://bucket/file.json.br")
 
     def test_process_line_rejects_non_object_json(self):
@@ -65,17 +70,53 @@ class DownloaderTests(unittest.TestCase):
                 processor.process_line("https://bucket/file.json.br")
 
     def test_saves_processed_json_and_skips_existing_file(self):
-        result = {"input_url": "https://example.com/", "page_text_snippet": []}
+        result = {
+            "input_url": "https://example.com/",
+            "headers": [],
+            "page_text_snippet": [],
+        }
 
         with tempfile.TemporaryDirectory() as directory:
-            output_dir = Path(directory)
+            output_dir = Path(directory) / "output"
+            raw_dir = Path(directory) / "json"
             row = {"hashval": "abc", "s3status": "https://bucket/abc.json.br"}
-            with patch.object(main, "process_line", return_value=result) as process:
-                self.assertEqual(main.download_one(row, output_dir)[0], "downloaded")
-                self.assertEqual(main.download_one(row, output_dir)[0], "skipped")
+            def process_line(s3link, raw_path):
+                main.save_result({"raw": True}, raw_path)
+                return result
+
+            with patch.object(main, "process_line", side_effect=process_line) as process:
+                self.assertEqual(
+                    main.download_one(row, output_dir, raw_dir)[0],
+                    "downloaded",
+                )
+                self.assertEqual(
+                    main.download_one(row, output_dir, raw_dir)[0],
+                    "skipped",
+                )
 
             self.assertEqual(json.loads((output_dir / "abc.json").read_text()), result)
-            process.assert_called_once_with(row["s3status"])
+            self.assertEqual(json.loads((raw_dir / "abc.json").read_text()), {"raw": True})
+            process.assert_called_once_with(row["s3status"], raw_dir / "abc.json")
+
+    def test_reprocesses_existing_output_with_old_heading_schema(self):
+        result = {"headers": ["Current Heading"]}
+
+        with tempfile.TemporaryDirectory() as directory:
+            output_dir = Path(directory) / "output"
+            raw_dir = Path(directory) / "json"
+            main.save_result({"h1_tags": ["Old Heading"]}, output_dir / "abc.json")
+            main.save_result({"raw": True}, raw_dir / "abc.json")
+            row = {"hashval": "abc", "s3status": "https://bucket/abc.json.br"}
+
+            with patch.object(main, "process_line", return_value=result) as process:
+                status, _ = main.download_one(row, output_dir, raw_dir)
+
+            self.assertEqual(status, "downloaded")
+            self.assertEqual(
+                json.loads((output_dir / "abc.json").read_text()),
+                result,
+            )
+            process.assert_called_once_with(row["s3status"], raw_dir / "abc.json")
 
     def test_failed_row_does_not_stop_later_rows(self):
         rows = [
@@ -87,10 +128,15 @@ class DownloaderTests(unittest.TestCase):
             with redirect_stderr(io.StringIO()), patch.object(
                 main, "process_line", return_value={"ok": True}
             ):
-                counts = main.process_rows(rows, Path(directory), workers=1)
+                counts = main.process_rows(
+                    rows,
+                    Path(directory) / "output",
+                    workers=1,
+                    raw_dir=Path(directory) / "json",
+                )
 
             self.assertEqual(counts, {"downloaded": 1, "skipped": 0, "failed": 1})
-            self.assertTrue((Path(directory) / "good.json").exists())
+            self.assertTrue((Path(directory) / "output" / "good.json").exists())
 
 
 if __name__ == "__main__":
