@@ -33,7 +33,7 @@ page_text_snippet
 - `anchor_tag_count`: Shows how many links and navigation elements exist.
 - `anchor_tags_list`: Provides up to five randomly sampled complete paths without domains, query strings, or fragments.
 - `title`: Provides the page's main browser title.
-- `headers`: Keeps up to ten unique, cleaned `h1` through `h6` headings in page order.
+- `headers`: Keeps up to five cleaned H1 values first, then fills the ten-item limit from H2 through H6.
 - `image_alt_tags`: Keeps up to fifteen random, unique, cleaned, non-empty image alt texts.
 - `page_text_snippet`: Provides up to five unique page-content items, prioritized by cleaned word count from largest to smallest.
 
@@ -58,15 +58,16 @@ https://www.goodreads.com/blog/show/3146?ref=literalsummer_eb
 
 1. Parse `url_raw_body` with the free `lxml` library.
 2. Extract the page `<title>`.
-3. Keep the first ten unique, non-empty `<h1>` through `<h6>` values in page order.
-4. Keep up to fifteen random, unique, cleaned, non-empty `<img alt>` values.
-5. Collect valid `<p>` elements and leaf `<div>` and `<span>` elements.
-6. Rank candidates containing more than 10 cleaned words from largest to smallest.
-7. Fill remaining slots with candidates containing 5 to 10 words, also largest first.
-8. Keep at most five unique candidates.
-9. Truncate each candidate to its first 50 words and append `...` when truncated.
-10. Ignore candidates inside navigation, header, footer, aside, script and style elements.
-11. Return empty lists when the body is missing or cannot be parsed.
+3. Ignore navigation, footer, aside and global site-header headings; allow article headers inside `main` or `article`.
+4. Keep up to five unique H1 values first, then fill the ten-item limit from H2 through H6.
+5. Keep up to fifteen random, unique, cleaned, non-empty `<img alt>` values.
+6. Collect valid `<p>` elements and leaf `<div>` and `<span>` elements.
+7. Rank candidates containing more than 10 cleaned words from largest to smallest.
+8. Fill remaining slots with candidates containing 5 to 10 words, also largest first.
+9. Keep at most five unique candidates.
+10. Truncate each candidate to its first 50 words and append `...` when truncated.
+11. Ignore candidates inside navigation, header, footer, aside, script and style elements.
+12. Return empty lists when the body is missing or cannot be parsed.
 
 ## Text Cleanup
 

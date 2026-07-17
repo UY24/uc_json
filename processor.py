@@ -66,12 +66,29 @@ def _allowed(element):
     )
 
 
+def _heading_allowed(element):
+    tags = {
+        str(node.tag).lower()
+        for node in (element, *element.iterancestors())
+    }
+    if tags & {"nav", "footer", "aside", "script", "style"}:
+        return False
+    return "header" not in tags or bool(tags & {"main", "article"})
+
+
 def _headers(root):
     values = []
-    for element in root.xpath("//h1 | //h2 | //h3 | //h4 | //h5 | //h6"):
-        value = _clean_text(element.text_content())
-        if value and value not in values:
-            values.append(value)
+    for tag in ("h1", "h2", "h3", "h4", "h5", "h6"):
+        added = 0
+        for element in root.xpath(f"//{tag}"):
+            if not _heading_allowed(element):
+                continue
+            value = _clean_text(element.text_content())
+            if value and value not in values:
+                values.append(value)
+                added += 1
+            if len(values) == 10 or (tag == "h1" and added == 5):
+                break
         if len(values) == 10:
             break
     return values

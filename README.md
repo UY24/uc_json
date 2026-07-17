@@ -37,7 +37,7 @@ result = process_line(s3link)
 
 To embed it in another codebase, copy `processor.py` and install `brotli` and `lxml`. `process_line` is the file's only public function. Pass an optional path as `process_line(s3link, raw_path)` when the decompressed source JSON should also be saved.
 
-The filter keeps `word_count`, `anchor_tag_count`, up to five random non-root paths without domains or query strings in `anchor_tags_list`, the page `title`, up to ten `headers` from `h1` through `h6`, up to fifteen random cleaned `image_alt_tags`, and `page_text_snippet`. The snippet field keeps up to five unique paragraphs or leaf divs/spans, largest first. Text over 10 words is prioritized, then remaining slots use text with at least 5 words. Each item is limited to 50 words and receives `...` when truncated. Punctuation, decorative symbols, and extra whitespace are removed from extracted text.
+The filter keeps `word_count`, `anchor_tag_count`, up to five random non-root paths without domains or query strings in `anchor_tags_list`, the page `title`, up to ten `headers`, up to fifteen random cleaned `image_alt_tags`, and `page_text_snippet`. Navigation/sidebar/footer headings and global site-header headings are excluded, while article headers inside `main` or `article` remain valid. Up to five H1 values are kept first, then remaining header slots are filled from H2 through H6. The snippet field keeps up to five unique paragraphs or leaf divs/spans, largest first. Text over 10 words is prioritized, then remaining slots use text with at least 5 words. Each item is limited to 50 words and receives `...` when truncated. Punctuation, decorative symbols, and extra whitespace are removed from extracted text.
 
 ## Test
 

@@ -76,7 +76,6 @@ class FilterJsonTests(unittest.TestCase):
         self.assertEqual(
             result["headers"],
             [
-                "Main Heading",
                 "Second Heading",
                 "Third Heading",
                 "Fourth Heading",
@@ -185,6 +184,44 @@ class FilterJsonTests(unittest.TestCase):
         self.assertEqual(
             result["headers"],
             [f"Heading {number}" for number in range(1, 7)],
+        )
+
+    def test_headers_exclude_layout_and_prioritize_five_h1_values(self):
+        html = """
+            <nav><h1>Navigation Heading</h1></nav>
+            <header><h2>Header Menu</h2></header>
+            <footer><h3>Footer Heading</h3></footer>
+            <aside><h4>Sidebar Heading</h4></aside>
+            <h3>Third Level</h3>
+            <h2>Second Level One</h2>
+            <main><article><header><h1>Primary One!</h1></header></article></main>
+            <h1>Primary Two!</h1>
+            <h1>Primary Three!</h1>
+            <h1>Primary Four!</h1>
+            <h1>Primary Five!</h1>
+            <h1>Primary Six!</h1>
+            <h2>Second Level Two</h2>
+            <h4>Fourth Level</h4>
+            <h5>Fifth Level</h5>
+            <h6>Sixth Level</h6>
+        """
+
+        result = processor._filter_artifact({"url_raw_body": html})
+
+        self.assertEqual(
+            result["headers"],
+            [
+                "Primary One",
+                "Primary Two",
+                "Primary Three",
+                "Primary Four",
+                "Primary Five",
+                "Second Level One",
+                "Second Level Two",
+                "Third Level",
+                "Fourth Level",
+                "Fifth Level",
+            ],
         )
 
     def test_randomly_keeps_fifteen_unique_cleaned_image_alt_tags(self):
